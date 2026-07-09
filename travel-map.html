@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>南京・揚州・蘇州 八日遊互動地圖</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        header {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        header h1 span { color: #94a3b8; font-weight: 400; font-size: 14px; }
+        header .dates {
+            font-size: 13px;
+            color: #94a3b8;
+            background: #0f172a;
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid #334155;
+        }
+        .main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 340px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        .sidebar::-webkit-scrollbar { width: 5px; }
+        .sidebar::-webkit-scrollbar-track { background: #1e293b; }
+        .sidebar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        .day-section { padding: 16px 0; }
+        .day-section + .day-section { border-top: 1px solid #334155; }
+        .day-header {
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .day-header:hover { color: #818cf8; }
+        .day-header .city-badge {
+            font-size: 11px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+        .city-nanjing .city-badge { background: #1e3a5f; color: #60a5fa; }
+        .city-yangzhou .city-badge { background: #1e3a2f; color: #34d399; }
+        .city-suzhou .city-badge { background: #3a2e1e; color: #fb923c; }
+        .day-header h3 { font-size: 15px; font-weight: 600; }
+        .day-header .date-label { font-size: 12px; color: #64748b; }
+        .poi-list { padding: 8px 20px 0; display: flex; flex-direction: column; gap: 6px; }
+        .poi-item {
+            font-size: 13px;
+            padding: 6px 10px;
+            background: #0f172a;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .poi-item:hover { border-color: #6366f1; background: #1e293b; }
+        .poi-item .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .poi-item .poi-name { font-weight: 500; }
+        .poi-item .poi-time { font-size: 11px; color: #64748b; margin-left: auto; }
+        .hotel-section {
+            padding: 12px 20px 4px;
+            font-size: 12px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .hotel-section i { color: #f59e0b; }
+        .leaflet-container { background: #0f172a !important; }
+        .leaflet-control-zoom a {
+            background: #1e293b !important;
+            color: #f8fafc !important;
+            border-color: #334155 !important;
+        }
+        .leaflet-control-zoom a:hover { background: #334155 !important; }
+        .leaflet-control-attribution { display: none !important; }
+        .custom-popup .leaflet-popup-content-wrapper {
+            background: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .custom-popup .leaflet-popup-tip { background: #1e293b; border: 1px solid #334155; }
+        .custom-popup .leaflet-popup-content { margin: 12px 16px; font-size: 13px; line-height: 1.6; }
+        .custom-popup .popup-title { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+        .custom-popup .popup-desc { color: #94a3b8; font-size: 12px; }
+        .custom-popup .popup-day { font-size: 11px; color: #64748b; margin-top: 4px; }
+        .legend {
+            position: absolute;
+            bottom: 24px;
+            right: 16px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 12px 16px;
+            z-index: 1000;
+            font-size: 12px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .legend-item:last-child { margin-bottom: 0; }
+        .legend-color { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .legend-line { width: 24px; height: 2px; flex-shrink: 0; }
+        @media (max-width: 768px) {
+            .main { flex-direction: column; }
+            .sidebar { width: 100%; max-height: 40vh; border-right: none; border-bottom: 1px solid #334155; }
+            .map-container { flex: 1; min-height: 0; }
+            header { padding: 10px 16px; flex-wrap: wrap; gap: 8px; }
+            header h1 { font-size: 15px; }
+            .legend { bottom: 8px; right: 8px; padding: 8px 12px; font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>🗺️ 江南之旅 <span>南京 · 揚州 · 蘇州</span></h1>
+    <div class="dates">📅 7.25 — 8.1</div>
+</header>
+<div class="main">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="map-container">
+        <div id="map"></div>
+        <div class="legend">
+            <div class="legend-item"><span class="legend-color" style="background:#3b82f6"></span> 南京 7/25-27</div>
+            <div class="legend-item"><span class="legend-color" style="background:#10b981"></span> 揚州 7/27-29</div>
+            <div class="legend-item"><span class="legend-color" style="background:#f97316"></span> 蘇州 7/29-8/1</div>
+            <div class="legend-item"><span class="legend-line" style="background:#64748b;border-top:2px dashed #64748b;"></span> 高鐵路線</div>
+            <div class="legend-item"><span class="legend-color" style="background:#f59e0b"></span> 推薦住宿</div>
+        </div>
+    </div>
+</div>
+<script>
+    const DATA = [
+        {
+            city: '南京', cityClass: 'city-nanjing', color: '#3b82f6',
+            dates: '7/25 (五) — 7/27 (日)',
+            center: [32.0603, 118.7969], zoom: 13,
+            hotel: '夫子廟 / 新街口',
+            days: [
+                { date: '7/25 (五) 下午', title: '抵達南京 · 秦淮夜色', pois: [
+                    { name: '夫子廟秦淮河', lat: 32.0206, lng: 118.7877, time: '晚上', desc: '夜遊秦淮河、品南京小吃，感受「煙籠寒水月籠沙」' },
+                    { name: '老門東', lat: 32.0158, lng: 118.7909, time: '晚上', desc: '歷史街區，鴨血粉絲湯、牛肉鍋貼' }
+                ]},
+                { date: '7/26 (六)', title: '六朝古都 · 鍾山風雲', pois: [
+                    { name: '中山陵', lat: 32.0609, lng: 118.8486, time: '上午', desc: '免費，392 級台階，建議 08:00 前到' },
+                    { name: '明孝陵', lat: 32.0600, lng: 118.8300, time: '中午', desc: '世界遺產，神道石象路極美' },
+                    { name: '南京博物院', lat: 32.0414, lng: 118.8191, time: '下午', desc: '免費需預約，民國館必看' },
+                    { name: '老門東（晚餐）', lat: 32.0158, lng: 118.7909, time: '晚上', desc: '南京大牌檔、德基廣場淮揚菜' }
+                ]},
+                { date: '7/27 (日) 上午', title: '玄武湖 · 雞鳴寺', pois: [
+                    { name: '玄武湖', lat: 32.0692, lng: 118.7977, time: '上午', desc: '江南最大城內湖，散步或划船' },
+                    { name: '雞鳴寺', lat: 32.0625, lng: 118.7900, time: '上午', desc: '南朝四百八十寺之首，可俯瞰玄武湖' }
+                ]}
+            ]
+        },
+        {
+            city: '揚州', cityClass: 'city-yangzhou', color: '#10b981',
+            dates: '7/27 (日) — 7/29 (二)',
+            center: [32.3932, 119.4140], zoom: 14,
+            hotel: '東關街',
+            days: [
+                { date: '7/27 (日) 下午', title: '高鐵至揚州 · 東關漫步', pois: [
+                    { name: '東關街', lat: 32.3960, lng: 119.4440, time: '下午~晚上', desc: '千年古街，揚州炒飯、獅子頭、謝馥春香粉' }
+                ]},
+                { date: '7/28 (一)', title: '瘦西湖畔 · 園林雅韻', pois: [
+                    { name: '瘦西湖', lat: 32.4070, lng: 119.4120, time: '上午', desc: '核心景區，二十四橋、五亭橋，預留 3h' },
+                    { name: '個園', lat: 32.3950, lng: 119.4400, time: '中午', desc: '四大名園之一，四季假山聞名' },
+                    { name: '何園', lat: 32.3870, lng: 119.4350, time: '下午', desc: '晚清第一名園，中西合璧' },
+                    { name: '古運河夜遊', lat: 32.3900, lng: 119.4300, time: '晚上', desc: '京杭大運河揚州段，夜景璀璨' }
+                ]},
+                { date: '7/29 (二) 上午', title: '大明寺 · 鑑真東渡', pois: [
+                    { name: '大明寺', lat: 32.4180, lng: 119.4060, time: '上午', desc: '棲靈塔、鑑真紀念館，登塔俯瞰瘦西湖' }
+                ]}
+            ]
+        },
+        {
+            city: '蘇州', cityClass: 'city-suzhou', color: '#f97316',
+            dates: '7/29 (二) — 8/1 (五)',
+            center: [31.3179, 120.5853], zoom: 13,
+            hotel: '觀前街 / 平江路',
+            days: [
+                { date: '7/29 (二) 下午', title: '高鐵至蘇州 · 平江路', pois: [
+                    { name: '平江路', lat: 31.3202, lng: 120.6330, time: '下午~晚上', desc: '水巷並行，聽評彈、品碧螺春' }
+                ]},
+                { date: '7/30 (三)', title: '園林經典 · 博物館', pois: [
+                    { name: '拙政園', lat: 31.3250, lng: 120.6250, time: '上午', desc: '中國四大名園之首，建議 07:30 開園就進' },
+                    { name: '蘇州博物館', lat: 31.3240, lng: 120.6230, time: '中午', desc: '貝聿銘封山之作，免費需預約' },
+                    { name: '山塘街', lat: 31.3160, lng: 120.6000, time: '晚上', desc: '「七里山塘」夜景，遊船聽曲' }
+                ]},
+                { date: '7/31 (四)', title: '水鄉古鎮 · 周莊一日', pois: [
+                    { name: '周莊', lat: 31.1160, lng: 120.8470, time: '全天', desc: '中國第一水鄉，小橋流水人家，蘇州站旁乘大巴直達' }
+                ]},
+                { date: '8/1 (五) 上午', title: '寒山寺 · 返程', pois: [
+                    { name: '寒山寺', lat: 31.3130, lng: 120.5685, time: '上午', desc: '「姑蘇城外寒山寺，夜半鐘聲到客船」' }
+                ]}
+            ]
+        }
+    ];
+
+    const map = L.map('map', { center: [31.8, 119.8], zoom: 9, zoomControl: true, attributionControl: false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(map);
+
+    const markers = [];
+    const bounds = L.latLngBounds([]);
+
+    const routeCoords = [
+        { from: [32.0603, 118.7969], to: [32.3932, 119.4140], label: '南京 → 揚州 🚄 50min' },
+        { from: [32.3932, 119.4144], to: [31.3179, 120.5853], label: '揚州 → 蘇州 🚄 1h20min' }
+    ];
+
+    routeCoords.forEach((r) => {
+        L.polyline([r.from, r.to], { color: '#64748b', weight: 2, dashArray: '8, 8', opacity: 0.8 }).addTo(map);
+        const mid = [(r.from[0] + r.to[0]) / 2, (r.from[1] + r.to[1]) / 2];
+        const icon = L.divIcon({
+            html: `<div style="font-size:11px;color:#94a3b8;font-weight:500;white-space:nowrap;text-shadow:0 1px 4px #0f172a;">${r.label}</div>`,
+            className: '', iconSize: [200, 20], iconAnchor: [100, 10]
+        });
+        L.marker(mid, { icon, interactive: false }).addTo(map);
+        bounds.extend(r.from); bounds.extend(r.to);
+    });
+
+    DATA.forEach((cityData) => {
+        cityData.days.forEach((day) => {
+            day.pois.forEach((poi) => {
+                const icon = L.divIcon({
+                    html: `<div style="width:14px;height:14px;background:${cityData.color};border:2px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>`,
+                    className: '', iconSize: [14, 14], iconAnchor: [7, 7]
+                });
+                const marker = L.marker([poi.lat, poi.lng], { icon }).addTo(map).bindPopup(`
+                    <div class="custom-popup">
+                        <div class="popup-title">📍 ${poi.name}</div>
+                        <div class="popup-desc">${poi.desc}</div>
+                        <div class="popup-day">⏰ ${day.date} · ${poi.time}</div>
+                    </div>`, { className: 'custom-popup', offset: [0, -7] });
+                marker._poiData = { city: cityData.city, name: poi.name };
+                markers.push(marker);
+                bounds.extend([poi.lat, poi.lng]);
+            });
+        });
+
+        const hotelCoords = cityData.city === '南京' ? [32.0250, 118.7850] : cityData.city === '揚州' ? [32.3960, 119.4430] : [31.3160, 120.6320];
+        const hotelIcon = L.divIcon({
+            html: `<div style="font-size:16px;text-align:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">🏨</div>`,
+            className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+        });
+        const hotelMarker = L.marker(hotelCoords, { icon: hotelIcon }).addTo(map).bindPopup(`
+            <div class="custom-popup">
+                <div class="popup-title">🏨 ${cityData.city}住宿推薦</div>
+                <div class="popup-desc">${cityData.hotel} — 地鐵沿線，交通便利</div>
+            </div>`, { className: 'custom-popup' });
+        markers.push(hotelMarker);
+        bounds.extend(hotelCoords);
+    });
+
+    map.fitBounds(bounds, { padding: [40, 40] });
+
+    function renderSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        DATA.forEach((cityData) => {
+            const section = document.createElement('div');
+            section.className = `day-section ${cityData.cityClass}`;
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'day-header';
+            headerDiv.innerHTML = `<div><h3>🏙️ ${cityData.city}</h3><div class="date-label">${cityData.dates}</div></div><span class="city-badge">${cityData.days.length} 天</span>`;
+            headerDiv.addEventListener('click', () => map.flyTo(cityData.center, cityData.zoom, { duration: 1.2 }));
+            section.appendChild(headerDiv);
+            const hotelDiv = document.createElement('div');
+            hotelDiv.className = 'hotel-section';
+            hotelDiv.innerHTML = `<i>🏨</i> ${cityData.hotel}`;
+            section.appendChild(hotelDiv);
+            cityData.days.forEach((day) => {
+                const poiList = document.createElement('div');
+                poiList.className = 'poi-list';
+                const dateHeader = document.createElement('div');
+                dateHeader.style.cssText = 'font-size:12px;color:#64748b;padding:6px 0 2px;font-weight:500;';
+                dateHeader.textContent = `${day.date} — ${day.title}`;
+                poiList.appendChild(dateHeader);
+                day.pois.forEach((poi) => {
+                    const item = document.createElement('div');
+                    item.className = 'poi-item';
+                    item.innerHTML = `<span class="dot" style="background:${cityData.color}"></span><span class="poi-name">${poi.name}</span><span class="poi-time">${poi.time}</span>`;
+                    item.addEventListener('click', () => {
+                        map.flyTo([poi.lat, poi.lng], 15, { duration: 1 });
+                        setTimeout(() => {
+                            const m = markers.find(mk => mk._poiData && mk._poiData.name === poi.name);
+                            if (m) m.openPopup();
+                        }, 1200);
+                    });
+                    poiList.appendChild(item);
+                });
+                section.appendChild(poiList);
+            });
+            sidebar.appendChild(section);
+        });
+    }
+
+    renderSidebar();
+</script>
+</body>
+</html>
